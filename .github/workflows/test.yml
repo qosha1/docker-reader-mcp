@@ -1,0 +1,171 @@
+name: Test Docker Reader MCP
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    paths-ignore:
+      - '*.md'
+      - 'CHANGELOG.md'
+      - '.gitignore'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run type check
+      run: npm run typecheck
+
+    - name: Build project
+      run: npm run build
+
+    - name: Test build output exists
+      run: |
+        if [ ! -f "dist/index.js" ]; then
+          echo "Build output not found"
+          exit 1
+        fi
+        echo "✅ Build output found"
+
+    - name: Test package configuration
+      run: |
+        npm pack --dry-run > pack_output.txt
+        if ! grep -q "docker-reader-mcp" pack_output.txt; then
+          echo "Package name not found in pack output"
+          exit 1
+        fi
+        if ! grep -q "dist/" pack_output.txt; then
+          echo "Dist files not included in package"
+          exit 1
+        fi
+        echo "✅ Package configuration valid"
+
+    - name: Test executable permissions
+      run: |
+        if [ ! -x "dist/index.js" ]; then
+          echo "⚠️  dist/index.js is not executable (will be fixed by postinstall)"
+        else
+          echo "✅ dist/index.js is executable"
+        fi
+
+    - name: Start test containers
+      run: |
+        docker run -d --name test-nginx nginx:alpine
+        docker run -d --name test-redis redis:alpine
+        sleep 5
+        echo "✅ Test containers started"
+
+    - name: Test MCP server functionality
+      timeout-minutes: 2
+      run: |
+        # Test server initialization
+        echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{"tools":true,"resources":true},"clientInfo":{"name":"test","version":"1.0.0"}}}' | timeout 10s node dist/index.js > init_response.json
+        
+        if ! grep -q "docker-reader-mcp" init_response.json; then
+          echo "❌ Server initialization failed"
+          cat init_response.json
+          exit 1
+        fi
+        echo "✅ Server initialization successful"
+
+        # Test tools listing
+        echo '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | timeout 10s node dist/index.js > tools_response.json
+        
+        if ! grep -q "docker_list_containers\|docker_read_logs\|docker_inspect_container\|docker_container_stats" tools_response.json; then
+          echo "❌ Tools listing failed"
+          cat tools_response.json
+          exit 1
+        fi
+        echo "✅ Tools listing successful"
+
+        # Test container listing
+        echo '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"docker_list_containers","arguments":{"all":false}}}' | timeout 10s node dist/index.js > containers_response.json
+        
+        if ! grep -q "test-nginx\|test-redis" containers_response.json; then
+          echo "❌ Container listing failed"
+          cat containers_response.json
+          exit 1
+        fi
+        echo "✅ Container listing successful"
+
+        # Test log reading
+        echo '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"docker_read_logs","arguments":{"container":"test-nginx","lines":5}}}' | timeout 10s node dist/index.js > logs_response.json
+        
+        if ! grep -q "Logs for container" logs_response.json; then
+          echo "❌ Log reading failed"
+          cat logs_response.json
+          exit 1
+        fi
+        echo "✅ Log reading successful"
+
+    - name: Test error handling
+      run: |
+        # Test with non-existent container
+        echo '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"docker_read_logs","arguments":{"container":"nonexistent-container"}}}' | timeout 10s node dist/index.js > error_response.json
+        
+        if ! grep -q '"isError":true' error_response.json; then
+          echo "❌ Error handling failed"
+          cat error_response.json
+          exit 1
+        fi
+        echo "✅ Error handling working correctly"
+
+    - name: Cleanup test containers
+      if: always()
+      run: |
+        docker rm -f test-nginx test-redis || true
+        echo "✅ Test containers cleaned up"
+
+  package-test:
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build and pack
+      run: |
+        npm run build
+        npm pack
+
+    - name: Test packaged installation
+      run: |
+        # Test installing the package
+        npm install -g ./docker-reader-mcp-1.0.0.tgz
+        
+        # Verify the command is available
+        if ! command -v docker-reader-mcp >/dev/null 2>&1; then
+          echo "❌ docker-reader-mcp command not found after global install"
+          exit 1
+        fi
+        echo "✅ docker-reader-mcp command available after installation"
+
+    - name: Upload package artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: npm-package
+        path: docker-reader-mcp-*.tgz

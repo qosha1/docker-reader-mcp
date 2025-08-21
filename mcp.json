@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "docker-reader": {
+      "command": "node",
+      "args": ["dist/index.js"],
+      "description": "Docker container log reader and inspector for AI agents",
+      "capabilities": {
+        "tools": [
+          "docker_list_containers",
+          "docker_read_logs", 
+          "docker_inspect_container",
+          "docker_container_stats"
+        ],
+        "resources": [
+          "docker://container/*"
+        ]
+      },
+      "requirements": {
+        "docker": "Required for container operations"
+      }
+    }
+  }
+}

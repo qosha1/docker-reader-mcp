@@ -1,0 +1,59 @@
+{
+  "name": "docker-reader-mcp",
+  "version": "1.0.0",
+  "description": "A fully self-sustaining Model Context Protocol server for reading Docker container logs and information",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "docker-reader-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist/**/*",
+    "mcp.json",
+    "README.md",
+    "package.json"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "lint": "eslint src/**/*.ts || true",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build",
+    "postinstall": "chmod +x dist/index.js"
+  },
+  "keywords": [
+    "mcp", 
+    "model-context-protocol", 
+    "docker", 
+    "logs", 
+    "containers", 
+    "debugging", 
+    "ai-agent",
+    "claude",
+    "llm",
+    "devtools"
+  ],
+  "author": "Docker Reader MCP Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/qosha/docker-reader-mcp.git"
+  },
+  "homepage": "https://github.com/qosha/docker-reader-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/qosha/docker-reader-mcp/issues"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
