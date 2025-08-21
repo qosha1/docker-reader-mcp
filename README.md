@@ -237,6 +237,14 @@ node dist/index.js
 4. Ensure all tests pass
 5. Submit a pull request
 
+## Contributors & Sponsors
+
+This project is contributed to and sponsored by **[Debugg.ai](https://debugg.ai)** - Advanced AI browser automation & testing tools
+
 ## License
 
 MIT License - see LICENSE file for details.
+
+---
+
+Made with 🩸, 💦, and 😭 in 🌉 San Francisco

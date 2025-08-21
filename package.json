@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "docker-reader-mcp": "./dist/index.js"
+    "docker-reader-mcp": "dist/index.js"
   },
   "files": [
     "dist/**/*",
@@ -22,12 +22,12 @@
     "prepublishOnly": "npm run build"
   },
   "keywords": [
-    "mcp", 
-    "model-context-protocol", 
-    "docker", 
-    "logs", 
-    "containers", 
-    "debugging", 
+    "mcp",
+    "model-context-protocol",
+    "docker",
+    "logs",
+    "containers",
+    "debugging",
     "ai-agent",
     "claude",
     "llm",
