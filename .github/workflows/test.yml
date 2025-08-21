@@ -43,13 +43,14 @@ jobs:
 
     - name: Test package configuration
       run: |
-        npm pack --dry-run > pack_output.txt
+        npm pack --dry-run > pack_output.txt 2>&1
         if ! grep -q "docker-reader-mcp" pack_output.txt; then
           echo "Package name not found in pack output"
           exit 1
         fi
-        if ! grep -q "dist/" pack_output.txt; then
+        if ! grep -q "dist/index.js" pack_output.txt; then
           echo "Dist files not included in package"
+          cat pack_output.txt
           exit 1
         fi
         echo "✅ Package configuration valid"

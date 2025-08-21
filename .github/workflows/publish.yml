@@ -161,25 +161,7 @@ jobs:
     - name: Build project
       run: npm run build
       
-    - name: Check if version already exists on NPM
-      id: version_check
-      run: |
-        PACKAGE_NAME=$(node -p "require('./package.json').name")
-        PACKAGE_VERSION=$(node -p "require('./package.json').version")
-        
-        if npm view "$PACKAGE_NAME@$PACKAGE_VERSION" version >/dev/null 2>&1; then
-          echo "Version $PACKAGE_VERSION already exists on NPM"
-          echo "should_publish=false" >> $GITHUB_OUTPUT
-        else
-          echo "Version $PACKAGE_VERSION does not exist on NPM, proceeding with publish"
-          echo "should_publish=true" >> $GITHUB_OUTPUT
-        fi
-        
-        echo "package_name=$PACKAGE_NAME" >> $GITHUB_OUTPUT
-        echo "package_version=$PACKAGE_VERSION" >> $GITHUB_OUTPUT
-        
     - name: Publish to NPM
-      if: steps.version_check.outputs.should_publish == 'true'
       run: npm publish --access public
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -214,9 +196,3 @@ jobs:
           See [README.md](https://github.com/qosha/docker-reader-mcp/blob/main/README.md) for detailed usage instructions.
         draft: false
         prerelease: false
-        
-    - name: Skip publish (version exists)
-      if: steps.version_check.outputs.should_publish == 'false'
-      run: |
-        echo "::notice::Version ${{ steps.version_check.outputs.package_version }} already exists on NPM. Skipping publish."
-        echo "To publish a new version, update the version in package.json and push again."
