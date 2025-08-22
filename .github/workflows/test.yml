@@ -157,7 +157,8 @@ jobs:
     - name: Test packaged installation
       run: |
         # Test installing the package
-        npm install -g ./docker-reader-mcp-1.0.0.tgz
+        PACKAGE_FILE=$(ls docker-reader-mcp-*.tgz | head -1)
+        npm install -g "./$PACKAGE_FILE"
         
         # Verify the command is available
         if ! command -v docker-reader-mcp >/dev/null 2>&1; then
