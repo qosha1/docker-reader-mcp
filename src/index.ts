@@ -377,10 +377,14 @@ async function main() {
   } else {
     // Use stdio transport for Claude desktop and command-line usage
     const transport = new StdioServerTransport();
+    
+    // Log to stderr so it doesn't interfere with stdio protocol
+    console.error('Docker Reader MCP Server started in stdio mode');
+    console.error('Waiting for MCP client connection...');
+    
     await server.connect(transport);
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch(console.error);
-}
+// Always run main when this file is executed
+main().catch(console.error);
