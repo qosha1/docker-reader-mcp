@@ -2,6 +2,9 @@
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import http from 'http';
+import { URL } from 'url';
 import { 
   ListToolsRequestSchema,
   CallToolRequestSchema,
@@ -310,8 +313,72 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
 });
 
 async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
+  // Check if we're running in web/SSE mode via environment variable or command line arg
+  const useSSE = process.env.MCP_TRANSPORT === 'sse' || process.argv.includes('--sse');
+  
+  if (useSSE) {
+    // Use SSE transport for web-based connections (MCP Inspector)
+    const port = process.env.PORT ? parseInt(process.env.PORT) : 3001;
+    
+    // Store active transports by session ID
+    const activeTransports = new Map<string, SSEServerTransport>();
+    
+    const httpServer = http.createServer();
+    
+    httpServer.on('request', async (req, res) => {
+      const url = new URL(req.url!, `http://${req.headers.host}`);
+      
+      if (url.pathname === '/sse') {
+        // Handle SSE connection
+        const transport = new SSEServerTransport('/message', res);
+        
+        // Store transport by session ID for POST message routing
+        activeTransports.set(transport.sessionId, transport);
+        
+        // Clean up when connection closes
+        transport.onclose = () => {
+          activeTransports.delete(transport.sessionId);
+        };
+        
+        await server.connect(transport);
+      } else if (url.pathname === '/message' && req.method === 'POST') {
+        // Handle POST messages from client
+        const sessionId = url.searchParams.get('sessionId');
+        const transport = sessionId ? activeTransports.get(sessionId) : null;
+        
+        if (!transport) {
+          res.writeHead(404).end('Session not found');
+          return;
+        }
+        
+        // Let the transport handle the POST message
+        await transport.handlePostMessage(req, res);
+      } else {
+        // Serve a simple info page
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(`
+          <html>
+            <head><title>Docker Reader MCP Server</title></head>
+            <body>
+              <h1>Docker Reader MCP Server</h1>
+              <p>Server is running on port ${port}</p>
+              <p>Connect to SSE endpoint: <a href="/sse">/sse</a></p>
+              <p>Use this URL in MCP Inspector: <code>http://localhost:${port}/sse</code></p>
+            </body>
+          </html>
+        `);
+      }
+    });
+    
+    httpServer.listen(port, () => {
+      console.log(`MCP Server running on port ${port} with SSE transport`);
+      console.log(`Connect MCP Inspector to: http://localhost:${port}/sse`);
+    });
+  } else {
+    // Use stdio transport for Claude desktop and command-line usage
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+  }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

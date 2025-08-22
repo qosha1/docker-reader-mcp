@@ -16,7 +16,10 @@
   "scripts": {
     "build": "tsc && chmod +x dist/index.js",
     "dev": "tsx src/index.ts",
+    "dev:sse": "MCP_TRANSPORT=sse tsx src/index.ts",
     "start": "node dist/index.js",
+    "start:sse": "MCP_TRANSPORT=sse node dist/index.js",
+    "inspector": "npm run start:sse & sleep 2 && npx @modelcontextprotocol/inspector http://localhost:3001/sse",
     "lint": "eslint src/**/*.ts || true",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build"
@@ -33,15 +36,15 @@
     "llm",
     "devtools"
   ],
-  "author": "Docker Reader MCP Team",
+  "author": "Quinn Osha",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/qosha/docker-reader-mcp.git"
+    "url": "git+https://github.com/qosha1/docker-reader-mcp.git"
   },
-  "homepage": "https://github.com/qosha/docker-reader-mcp#readme",
+  "homepage": "https://github.com/qosha1/docker-reader-mcp#readme",
   "bugs": {
-    "url": "https://github.com/qosha/docker-reader-mcp/issues"
+    "url": "https://github.com/qosha1/docker-reader-mcp/issues"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.4",
