@@ -1,6 +1,6 @@
 {
   "name": "docker-reader-mcp",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A fully self-sustaining Model Context Protocol server for reading Docker container logs and information",
   "type": "module",
   "main": "dist/index.js",
