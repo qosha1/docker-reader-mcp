@@ -13,11 +13,12 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { DockerClient } from './docker-client.js';
-import { 
-  ListContainersSchema, 
-  ReadLogsSchema, 
-  InspectContainerSchema, 
-  ContainerStatsSchema 
+import {
+  ListContainersSchema,
+  ReadLogsSchema,
+  InspectContainerSchema,
+  ContainerStatsSchema,
+  ExecCommandSchema
 } from './validation.js';
 import { 
   DockerNotAvailableError, 
@@ -113,6 +114,46 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
           },
           required: ['container'],
+        },
+      },
+      {
+        name: 'docker_exec_command',
+        description: 'Execute a command in a running Docker container',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            container: {
+              type: 'string',
+              description: 'Container ID or name',
+            },
+            command: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Command to execute as an array (e.g., ["ls", "-la", "/app"])',
+            },
+            workingDir: {
+              type: 'string',
+              description: 'Working directory inside the container (must be absolute path)',
+            },
+            env: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Environment variables in KEY=VALUE format',
+            },
+            user: {
+              type: 'string',
+              description: 'User to run command as (format: user[:group] or uid[:gid])',
+            },
+            privileged: {
+              type: 'boolean',
+              description: 'Run in privileged mode (default: false)',
+            },
+            interactive: {
+              type: 'boolean',
+              description: 'Run in interactive mode with TTY (default: false)',
+            },
+          },
+          required: ['container', 'command'],
         },
       },
     ],
@@ -219,18 +260,75 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const args = ContainerStatsSchema.parse(request.params.arguments);
         const containers = await dockerClient.listContainers(false); // Only running containers for stats
         const container = dockerClient.findContainerByName(containers, args.container);
-        
+
         if (!container) {
           throw new ContainerNotFoundError(args.container + ' (running)');
         }
 
         const stats = await dockerClient.getContainerStats(container.id);
-        
+
         return {
           content: [
             {
               type: 'text',
               text: `Resource usage statistics for container '${container.name}' (${container.id.substring(0, 12)}):\n\n${stats}`,
+            },
+          ],
+        };
+      }
+
+      case 'docker_exec_command': {
+        const args = ExecCommandSchema.parse(request.params.arguments);
+        const containers = await dockerClient.listContainers(false); // Only running containers can execute commands
+        const container = dockerClient.findContainerByName(containers, args.container);
+
+        if (!container) {
+          throw new ContainerNotFoundError(args.container + ' (running)');
+        }
+
+        const execOptions: any = {
+          containerId: container.id,
+          command: args.command,
+          privileged: args.privileged,
+          interactive: args.interactive,
+        };
+
+        if (args.workingDir !== undefined) {
+          execOptions.workingDir = args.workingDir;
+        }
+
+        if (args.env !== undefined) {
+          execOptions.env = args.env;
+        }
+
+        if (args.user !== undefined) {
+          execOptions.user = args.user;
+        }
+
+        const result = await dockerClient.execCommand(execOptions);
+
+        // Format the output
+        let outputText = `Executed command in container '${container.name}' (${container.id.substring(0, 12)}):\n`;
+        outputText += `Command: ${args.command.join(' ')}\n`;
+        outputText += `Exit Code: ${result.exitCode}\n\n`;
+
+        if (result.stdout) {
+          outputText += `STDOUT:\n${result.stdout}\n`;
+        }
+
+        if (result.stderr) {
+          outputText += `\nSTDERR:\n${result.stderr}`;
+        }
+
+        if (!result.stdout && !result.stderr) {
+          outputText += '(No output)';
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: outputText,
             },
           ],
         };

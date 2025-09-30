@@ -23,6 +23,26 @@ export interface DockerLogOptions {
   follow?: boolean;
 }
 
+/**
+ * Options for executing commands in a Docker container
+ */
+export interface DockerExecOptions {
+  /** Container ID or name to execute command in */
+  containerId: string;
+  /** Command to execute (array of command and arguments) */
+  command: string[];
+  /** Working directory inside the container (optional) */
+  workingDir?: string;
+  /** Environment variables to set (optional) */
+  env?: string[];
+  /** User to run command as (optional, format: user[:group]) */
+  user?: string;
+  /** Run in privileged mode (optional) */
+  privileged?: boolean;
+  /** Run in interactive mode (allocate TTY) (optional) */
+  interactive?: boolean;
+}
+
 export class DockerClient {
   async isDockerAvailable(): Promise<boolean> {
     try {
@@ -112,10 +132,87 @@ export class DockerClient {
   }
 
   findContainerByName(containers: DockerContainer[], name: string): DockerContainer | undefined {
-    return containers.find(container => 
-      container.name === name || 
+    return containers.find(container =>
+      container.name === name ||
       container.name === `/${name}` ||
       container.id.startsWith(name)
     );
+  }
+
+  /**
+   * Execute a command in a running Docker container
+   * @param options - Execution options including container ID and command
+   * @returns Object containing stdout, stderr, and exit code
+   * @throws {DockerError} If the exec command fails
+   */
+  async execCommand(options: DockerExecOptions): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+    try {
+      const { containerId, command, workingDir, env, user, privileged, interactive } = options;
+
+      // Build the docker exec command with options
+      let dockerCommand = 'docker exec';
+
+      // Add optional flags
+      if (interactive) {
+        dockerCommand += ' -it';
+      }
+
+      if (workingDir) {
+        dockerCommand += ` --workdir ${this.escapeShellArg(workingDir)}`;
+      }
+
+      if (user) {
+        dockerCommand += ` --user ${this.escapeShellArg(user)}`;
+      }
+
+      if (privileged) {
+        dockerCommand += ' --privileged';
+      }
+
+      // Add environment variables
+      if (env && env.length > 0) {
+        for (const envVar of env) {
+          dockerCommand += ` --env ${this.escapeShellArg(envVar)}`;
+        }
+      }
+
+      // Add container ID
+      dockerCommand += ` ${this.escapeShellArg(containerId)}`;
+
+      // Add the command to execute
+      for (const arg of command) {
+        dockerCommand += ` ${this.escapeShellArg(arg)}`;
+      }
+
+      const { stdout, stderr } = await execAsync(dockerCommand);
+
+      return {
+        stdout: stdout || '',
+        stderr: stderr || '',
+        exitCode: 0
+      };
+    } catch (error: any) {
+      // Docker exec returns non-zero exit codes as errors
+      // We want to capture both the output and the exit code
+      if (error.stdout !== undefined || error.stderr !== undefined) {
+        return {
+          stdout: error.stdout || '',
+          stderr: error.stderr || '',
+          exitCode: error.code || 1
+        };
+      }
+
+      throw new DockerError(`Failed to execute command in container: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Escape shell arguments to prevent command injection
+   * @param arg - The argument to escape
+   * @returns Escaped shell argument
+   */
+  private escapeShellArg(arg: string): string {
+    // Replace single quotes with '\'' and wrap in single quotes
+    return `'${arg.replace(/'/g, "'\\''")}'`;
   }
 }
